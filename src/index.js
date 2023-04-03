@@ -4,12 +4,17 @@ const path = require('path');
 const fse = require('fs-extra');
 const chokidar = require('chokidar');
 
-const userHomeConfig = os.homedir() + '/.bi-sync-files.json';
-
 let config = null
-if (fse.pathExistsSync(userHomeConfig)) {
+const customPath = process.argv[2]
+const userHomeConfig = os.homedir() + '/.bi-sync-files.json';
+// 自定义路径
+if (customPath && fse.pathExistsSync(customPath)) {
+  config = require(customPath)
+} else if (fse.pathExistsSync(userHomeConfig)) {
+  // 用户主目录路径
   config = require(userHomeConfig)
 } else {
+  // 程序运行的相对路径
   console.log('请在用户目录设置.bi-sync-files.json')
   config = require('./config.json')
 }
@@ -23,75 +28,91 @@ const intervalTime = 1000 * 5
 // 定时同步时间间隔(毫秒)
 const intervalSyncTime = 1000 * 60 * 60
 
-// 根据相对路径获取出绝对路径
-config.syncs = config.syncs.map(item => {
-  if (item.from.startsWith('../') || item.from.startsWith('./')) {
-    item.from = path.resolve(item.from)
-  }
-  if (item.to.startsWith('../') || item.to.startsWith('./')) {
-    item.to = path.resolve(item.to)
-  }
-  return item
-})
+init();
 
-// 遍历配置文件中的同步任务
-for (const item of config.syncs) {
-  const { from, to, ignored, type } = item;
-  // 检测文件或文件夹是否存在，不存在则创建
-  if (type == 'dir') {
-    fse.ensureDir(from)
-    fse.ensureDir(to)
-  } else {
-    fse.ensureFile(from)
-    fse.ensureFile(to)
-  }
-}
+function init() {
 
-// 监听源路径的文件或文件夹变化
-for (const item of config.syncs) {
-  const { from, to, ignored, type } = item;
-  chokidar.watch(from, {
-    ignored: ignored
-  }).on('all', async (event, path) => {
-    console.log(`File ${path} has been ${event}.`);
-    await sync(from, to, ignored);
-  });
-}
+  // 根据相对路径获取出绝对路径
+  config.syncs = config.syncs.map(item => {
+    if (item.from.startsWith('../') || item.from.startsWith('./')) {
+      item.from = path.resolve(item.from)
+    }
+    if (item.to.startsWith('../') || item.to.startsWith('./')) {
+      item.to = path.resolve(item.to)
+    }
+    return item
+  })
 
-// 监听目标路径的文件或文件夹变化，需要等源路径的文件或文件夹变化执行结束
-const interval = setInterval(() => {
+
+  // 检测文件或文件夹是否存在
+  let allFileExist = true
   for (const item of config.syncs) {
-    const { from, to, ignored, type } = item;
-    if (syncFileList.size == 0) {
-      clearInterval(interval)
-      chokidar.watch(to, {
-        ignored: ignored
-      }).on('all', async (event, path) => {
-        console.log(`File ${path} has been ${event}.`);
-        await sync(to, from, ignored);
-      });
+    const { from, to, ignored } = item;
+    // 注意点：不能自动创建，因为一旦可以自动创建了，新创建的文件就是最新的文件了，就会覆盖本来的文件。
+    if (!fse.pathExistsSync(from)) {
+      log(`path "${from}" does not exist.`)
+      allFileExist = false
+    }
+    if (!fse.pathExistsSync(to)) {
+      log(`path "${to}" does not exist.`)
+      allFileExist = false
     }
   }
-}, intervalTime);
+  if (allFileExist) {
+    start()
+  }
+}
 
-// 定时同步
-setInterval(() => {
-  if (syncFileList.size > 0) return
+
+// 开始
+function start() {
+  // 监听源路径的文件或文件夹变化
   for (const item of config.syncs) {
-    const { from, to, ignored, type } = item;
-    sync(from, to, ignored);
+    const { from, to, ignored } = item;
+    chokidar.watch(from, {
+      ignored: ignored
+    }).on('all', async (event, path) => {
+      log(`File ${path} has been ${event}.`);
+      await sync(from, to, ignored);
+    });
   }
 
+  // 监听目标路径的文件或文件夹变化，需要等源路径的文件或文件夹变化执行结束
   const interval = setInterval(() => {
-    if (syncFileList.size > 0) return
-    clearInterval(interval)
     for (const item of config.syncs) {
-      const { from, to, ignored, type } = item;
-      sync(to, from, ignored);
+      const { from, to, ignored } = item;
+      if (syncFileList.size == 0) {
+        clearInterval(interval)
+        chokidar.watch(to, {
+          ignored: ignored
+        }).on('all', async (event, path) => {
+          log(`File ${path} has been ${event}.`);
+          await sync(to, from, ignored);
+        });
+      }
     }
   }, intervalTime);
 
-}, intervalSyncTime);
+  // 定时同步
+  setInterval(() => {
+    if (syncFileList.size > 0) return
+    for (const item of config.syncs) {
+      const { from, to, ignored } = item;
+      sync(from, to, ignored);
+    }
+
+    const interval = setInterval(() => {
+      if (syncFileList.size > 0) return
+      clearInterval(interval)
+      for (const item of config.syncs) {
+        const { from, to, ignored } = item;
+        sync(to, from, ignored);
+      }
+    }, intervalTime);
+
+  }, intervalSyncTime);
+}
+
 
 // 同步
 async function sync(fromPath, toPath, ignored = []) {
@@ -104,11 +125,11 @@ async function sync(fromPath, toPath, ignored = []) {
   const fromExists = await fse.pathExists(fromPath);
   const toExists = await fse.pathExists(toPath);
   if (!fromExists) {
-    console.error(`Source path "${fromPath}" does not exist.`);
+    log(`Source path "${fromPath}" does not exist.`);
     return;
   }
   if (!toExists) {
-    console.error(`Destination path "${toPath}" does not exist.`);
+    log(`Destination path "${toPath}" does not exist.`);
     return;
   }
 
@@ -141,5 +162,6 @@ async function compareFileTime(path1, path2) {
   return stat1.mtime > stat2.mtime;
 }
 
-
-
+function log(msg) {
+  console.log(`${new Date().toISOString()}: ${msg}`)
+}

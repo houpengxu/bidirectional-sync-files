@@ -3,20 +3,17 @@
     {
       "from": "./test/bar/a",
       "to": "./test/foo/a",
-      "ignored": [],
-      "type": "dir"
+      "ignored": []
     },
     {
       "from": "/Users/pengxu/git/coding/3.yesican/bi-sync-files/test/bar/b",
       "to": "/Users/pengxu/git/coding/3.yesican/bi-sync-files/test/foo/b",
-      "ignored": [],
-      "type": "dir"
+      "ignored": []
     },
     {
       "from": "/Users/pengxu/git/coding/3.yesican/bi-sync-files/test/bar/c",
       "to": "/Users/pengxu/git/coding/3.yesican/bi-sync-files/test/foo/c",
-      "ignored": [],
-      "type": "file"
+      "ignored": []
     }
   ]
 }
