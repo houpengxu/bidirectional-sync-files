@@ -6,13 +6,13 @@
       "ignored": []
     },
     {
-      "from": "/Users/pengxu/git/coding/3.yesican/bi-sync-files/test/bar/b",
-      "to": "/Users/pengxu/git/coding/3.yesican/bi-sync-files/test/foo/b",
+      "from": "./test/bar/b",
+      "to": "./test/foo/b",
       "ignored": []
     },
     {
-      "from": "/Users/pengxu/git/coding/3.yesican/bi-sync-files/test/bar/c",
-      "to": "/Users/pengxu/git/coding/3.yesican/bi-sync-files/test/foo/c",
+      "from": "./test/bar/c",
+      "to": "./test/foo/c",
       "ignored": []
     }
   ]
